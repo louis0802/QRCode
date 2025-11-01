@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: qrcode-converter
+  annotations:
+    # Nginx Ingress Controller 設定
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # 上傳檔案大小限制（根據需求調整）
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    # WebSocket 支援（Streamlit 需要）
+    nginx.ingress.kubernetes.io/websocket-services: qrcode-converter
+spec:
+  ingressClassName: nginx  # 或其他 Ingress Controller
+  rules:
+  - host: qrcode-converter.yourdomain.com  # 替換為你的域名
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: qrcode-converter
+            port:
+              number: 80
+  # TLS 配置（可選）
+  # tls:
+  # - hosts:
+  #   - qrcode-converter.yourdomain.com
+  #   secretName: qrcode-converter-tls

@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+output/*
+!output/.gitkeep
+input/*
+!input/.gitkeep
+*.log
+*.spec
+
+# Git
+.git/
+.gitignore
+
+# Build artifacts
+release/
+universal_release/
+windows_portable/
+
+# Test files
+test_*.py
+*_test.py
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Kubernetes
+k8s/

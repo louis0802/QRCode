@@ -1,0 +1,82 @@
+# QR Code 轉換程式 - Windows 版本
+
+## 快速開始
+
+### 方法 1: 使用可執行檔（推薦）
+1. 將要轉換的 QR code 圖片放入 `input` 資料夾
+2. 雙擊 `QRCodeConverter.exe` 執行程式
+3. 查看 `output` 資料夾中的轉換結果
+
+### 方法 2: 使用 Python 腳本
+如果可執行檔無法運作，可以直接使用 Python：
+
+1. 安裝 Python 3.8 或更新版本
+2. 開啟命令提示字元（CMD）
+3. 執行: `pip install -r requirements.txt`
+4. 執行: `python qrcode_converter.py`
+5. 或直接雙擊 `run.bat`
+
+## 功能說明
+
+- ✅ 自動偵測圖片中的多個 QR code
+- ✅ 將 [CVS] 轉換為 [MyCard]
+- ✅ 支援多種圖片格式：PNG, JPG, JPEG, BMP, GIF, TIFF
+- ✅ 自動清空 output 資料夾
+- ✅ 生成偵測不完整報告 (incomplete_files_report.txt)
+
+## 系統需求
+
+### 使用可執行檔
+- Windows 10 或更新版本
+- Visual C++ Redistributable (如執行時出錯請安裝)
+  https://aka.ms/vs/17/release/vc_redist.x64.exe
+
+### 使用 Python 腳本
+- Python 3.8+
+- pip (Python 套件管理器)
+
+## 重要：zbar 函式庫
+
+程式使用 pyzbar 來偵測 QR code，在 Windows 上需要額外安裝：
+
+**選項 1: 使用 conda (推薦)**
+```
+conda install -c conda-forge zbar
+```
+
+**選項 2: 手動安裝 DLL**
+1. 下載 zbar: http://zbar.sourceforge.net/download.html
+2. 將 `libzbar-64.dll` 放在程式目錄中
+
+**選項 3: 使用 OpenCV (無需額外安裝)**
+程式會自動偵測，如果沒有 zbar 則使用 OpenCV（準確度略低）
+
+## 輸出說明
+
+### QR code 檔案
+- 單個 QR code: 保留原檔名
+- 多個 QR code: 檔名_1.jpg, 檔名_2.jpg, 檔名_3.jpg
+
+### 報告檔案
+- `incomplete_files_report.txt`: 列出偵測數量不足 3 個的檔案
+
+## 常見問題
+
+### Q: 執行時出現「找不到 DLL」錯誤？
+A: 安裝 Visual C++ Redistributable
+
+### Q: 無法偵測到 QR code？
+A: 
+1. 安裝 zbar 函式庫（見上方說明）
+2. 確認圖片品質良好
+3. 檢查 QR code 是否清晰
+
+### Q: 程式執行完立即關閉？
+A: 使用 run.bat 或在 CMD 中執行，可看到輸出訊息
+
+## 技術支援
+
+詳細文件請參考 README.md
+
+---
+版本: 1.0
