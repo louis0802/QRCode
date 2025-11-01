@@ -4,3 +4,4 @@ Pillow>=10.0.0
 pyzbar>=0.1.9
 pyinstaller>=6.0.0
 streamlit>=1.28.0
+opencv-python-headless
