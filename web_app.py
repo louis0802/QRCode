@@ -12,12 +12,36 @@ import io
 from PIL import Image
 import zipfile
 from datetime import datetime
+import os
 
 try:
     from pyzbar.pyzbar import decode
     PYZBAR_AVAILABLE = True
 except ImportError:
     PYZBAR_AVAILABLE = False
+
+# 初始化 WeChat QRCode 偵測器
+WECHAT_DETECTOR = None
+WECHAT_AVAILABLE = False
+
+try:
+    # 模型檔案路徑
+    model_dir = os.path.join(os.path.dirname(__file__), 'models')
+    detect_prototxt = os.path.join(model_dir, 'detect.prototxt')
+    detect_caffemodel = os.path.join(model_dir, 'detect.caffemodel')
+    sr_prototxt = os.path.join(model_dir, 'sr.prototxt')
+    sr_caffemodel = os.path.join(model_dir, 'sr.caffemodel')
+    
+    # 檢查檔案是否存在
+    if all(os.path.exists(f) for f in [detect_prototxt, detect_caffemodel, sr_prototxt, sr_caffemodel]):
+        WECHAT_DETECTOR = cv2.wechat_qrcode_WeChatQRCode(
+            detect_prototxt, detect_caffemodel,
+            sr_prototxt, sr_caffemodel
+        )
+        WECHAT_AVAILABLE = True
+except Exception as e:
+    print(f"WeChat QRCode 初始化失敗: {e}")
+    WECHAT_AVAILABLE = False
 
 # 設定頁面
 st.set_page_config(
@@ -59,72 +83,174 @@ st.markdown("""
 
 
 def read_qrcode_from_image(image):
-    """從圖片讀取 QR code"""
+    """從圖片讀取 QR code - 優化版，優先順序: WeChat QRCode → pyzbar → OpenCV"""
     import numpy as np
     
     # 轉換為 numpy array
     img_array = np.array(image)
-    
     detected_qrcodes = []
     detected_data_set = set()
     
-    # 方法 1: 使用 pyzbar（原圖）
-    if PYZBAR_AVAILABLE:
-        decoded_objects = decode(img_array)
-        for obj in decoded_objects:
-            if obj.type == 'QRCODE':
-                data = obj.data.decode('utf-8')
+    # 轉換為不同格式備用
+    img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+    gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+    
+    # ========================================
+    # 優先級 1: WeChat QRCode（最強！）
+    # ========================================
+    if WECHAT_AVAILABLE and WECHAT_DETECTOR:
+        try:
+            # 策略 1.1: 原圖
+            results, points = WECHAT_DETECTOR.detectAndDecode(img_bgr)
+            for data in results:
                 if data and data not in detected_data_set:
                     detected_qrcodes.append(data)
                     detected_data_set.add(data)
+            
+            # 策略 1.2: 增強對比度
+            if len(detected_qrcodes) < 3:
+                clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+                enhanced = clahe.apply(gray)
+                enhanced_bgr = cv2.cvtColor(enhanced, cv2.COLOR_GRAY2BGR)
+                results, points = WECHAT_DETECTOR.detectAndDecode(enhanced_bgr)
+                for data in results:
+                    if data and data not in detected_data_set:
+                        detected_qrcodes.append(data)
+                        detected_data_set.add(data)
+            
+            # 策略 1.3: 二值化
+            if len(detected_qrcodes) < 3:
+                _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                binary_bgr = cv2.cvtColor(binary, cv2.COLOR_GRAY2BGR)
+                results, points = WECHAT_DETECTOR.detectAndDecode(binary_bgr)
+                for data in results:
+                    if data and data not in detected_data_set:
+                        detected_qrcodes.append(data)
+                        detected_data_set.add(data)
+            
+            # 如果 WeChat QRCode 找到所有 QR code，直接返回
+            if len(detected_qrcodes) >= 3:
+                return detected_qrcodes
+                
+        except Exception as e:
+            print(f"WeChat QRCode 偵測錯誤: {e}")
     
-    # 方法 2: 使用 pyzbar（灰階）
+    # ========================================
+    # 優先級 2: pyzbar（高精度）
+    # ========================================
     if PYZBAR_AVAILABLE and len(detected_qrcodes) < 3:
-        gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-        decoded_objects = decode(gray)
-        for obj in decoded_objects:
-            if obj.type == 'QRCODE':
-                data = obj.data.decode('utf-8')
-                if data and data not in detected_data_set:
-                    detected_qrcodes.append(data)
-                    detected_data_set.add(data)
+        try:
+            # 策略 2.1: 原圖
+            decoded_objects = decode(img_array)
+            for obj in decoded_objects:
+                if obj.type == 'QRCODE':
+                    data = obj.data.decode('utf-8')
+                    if data and data not in detected_data_set:
+                        detected_qrcodes.append(data)
+                        detected_data_set.add(data)
+            
+            # 策略 2.2: 灰階
+            if len(detected_qrcodes) < 3:
+                decoded_objects = decode(gray)
+                for obj in decoded_objects:
+                    if obj.type == 'QRCODE':
+                        data = obj.data.decode('utf-8')
+                        if data and data not in detected_data_set:
+                            detected_qrcodes.append(data)
+                            detected_data_set.add(data)
+            
+            # 策略 2.3: 增強對比度
+            if len(detected_qrcodes) < 3:
+                clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+                enhanced = clahe.apply(gray)
+                decoded_objects = decode(enhanced)
+                for obj in decoded_objects:
+                    if obj.type == 'QRCODE':
+                        data = obj.data.decode('utf-8')
+                        if data and data not in detected_data_set:
+                            detected_qrcodes.append(data)
+                            detected_data_set.add(data)
+            
+            # 策略 2.4: 二值化
+            if len(detected_qrcodes) < 3:
+                _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                decoded_objects = decode(binary)
+                for obj in decoded_objects:
+                    if obj.type == 'QRCODE':
+                        data = obj.data.decode('utf-8')
+                        if data and data not in detected_data_set:
+                            detected_qrcodes.append(data)
+                            detected_data_set.add(data)
+            
+            # 如果 pyzbar 找到所有 QR code，直接返回
+            if len(detected_qrcodes) >= 3:
+                return detected_qrcodes
+                
+        except Exception as e:
+            print(f"pyzbar 偵測錯誤: {e}")
     
-    # 方法 3: 使用 pyzbar（增強對比度）
-    if PYZBAR_AVAILABLE and len(detected_qrcodes) < 3:
-        gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-        enhanced = clahe.apply(gray)
-        decoded_objects = decode(enhanced)
-        for obj in decoded_objects:
-            if obj.type == 'QRCODE':
-                data = obj.data.decode('utf-8')
-                if data and data not in detected_data_set:
-                    detected_qrcodes.append(data)
-                    detected_data_set.add(data)
-    
-    # 方法 4: 使用 pyzbar（二值化）
-    if PYZBAR_AVAILABLE and len(detected_qrcodes) < 3:
-        gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-        _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        decoded_objects = decode(binary)
-        for obj in decoded_objects:
-            if obj.type == 'QRCODE':
-                data = obj.data.decode('utf-8')
-                if data and data not in detected_data_set:
-                    detected_qrcodes.append(data)
-                    detected_data_set.add(data)
-    
-    # 方法 5: 使用 OpenCV（作為備用）
-    if len(detected_qrcodes) == 0:
-        detector = cv2.QRCodeDetector()
-        # 轉換為 BGR 格式（OpenCV 使用的格式）
-        img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
-        success, decoded_info, points, _ = detector.detectAndDecodeMulti(img_bgr)
-        if success and decoded_info:
-            for data in decoded_info:
-                if data and data not in detected_data_set:
-                    detected_qrcodes.append(data)
-                    detected_data_set.add(data)
+    # ========================================
+    # 優先級 3: OpenCV（標準精度，最後備用）
+    # ========================================
+    if len(detected_qrcodes) < 3:
+        try:
+            detector = cv2.QRCodeDetector()
+            
+            # 策略 3.1: 原圖
+            success, decoded_info, points, _ = detector.detectAndDecodeMulti(img_bgr)
+            if success and decoded_info:
+                for data in decoded_info:
+                    if data and data not in detected_data_set:
+                        detected_qrcodes.append(data)
+                        detected_data_set.add(data)
+            
+            # 策略 3.2: 增強對比度
+            if len(detected_qrcodes) < 3:
+                clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+                enhanced = clahe.apply(gray)
+                enhanced_bgr = cv2.cvtColor(enhanced, cv2.COLOR_GRAY2BGR)
+                success, decoded_info, points, _ = detector.detectAndDecodeMulti(enhanced_bgr)
+                if success and decoded_info:
+                    for data in decoded_info:
+                        if data and data not in detected_data_set:
+                            detected_qrcodes.append(data)
+                            detected_data_set.add(data)
+            
+            # 策略 3.3: 二值化
+            if len(detected_qrcodes) < 3:
+                _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                binary_bgr = cv2.cvtColor(binary, cv2.COLOR_GRAY2BGR)
+                success, decoded_info, points, _ = detector.detectAndDecodeMulti(binary_bgr)
+                if success and decoded_info:
+                    for data in decoded_info:
+                        if data and data not in detected_data_set:
+                            detected_qrcodes.append(data)
+                            detected_data_set.add(data)
+            
+            # 策略 3.4: 反轉顏色（處理深色背景）
+            if len(detected_qrcodes) < 3:
+                inverted = cv2.bitwise_not(gray)
+                inverted_bgr = cv2.cvtColor(inverted, cv2.COLOR_GRAY2BGR)
+                success, decoded_info, points, _ = detector.detectAndDecodeMulti(inverted_bgr)
+                if success and decoded_info:
+                    for data in decoded_info:
+                        if data and data not in detected_data_set:
+                            detected_qrcodes.append(data)
+                            detected_data_set.add(data)
+            
+            # 策略 3.5: 調整亮度
+            if len(detected_qrcodes) < 3:
+                brightened = cv2.convertScaleAbs(gray, alpha=1.5, beta=30)
+                brightened_bgr = cv2.cvtColor(brightened, cv2.COLOR_GRAY2BGR)
+                success, decoded_info, points, _ = detector.detectAndDecodeMulti(brightened_bgr)
+                if success and decoded_info:
+                    for data in decoded_info:
+                        if data and data not in detected_data_set:
+                            detected_qrcodes.append(data)
+                            detected_data_set.add(data)
+                            
+        except Exception as e:
+            print(f"OpenCV 偵測錯誤: {e}")
     
     return detected_qrcodes
 
@@ -201,11 +327,31 @@ def main():
         
         st.divider()
         
-        st.header("⚙️ 偵測狀態")
-        if PYZBAR_AVAILABLE:
-            st.success("✅ pyzbar 可用（高精度）")
+        st.header("⚙️ 偵測器狀態")
+        st.markdown("**偵測優先順序**")
+        
+        # WeChat QRCode 狀態
+        if WECHAT_AVAILABLE:
+            st.success("🥇 WeChat QRCode（超高精度）")
         else:
-            st.warning("⚠️ 使用 OpenCV（標準精度）")
+            st.error("❌ WeChat QRCode 未啟用")
+        
+        # pyzbar 狀態
+        if PYZBAR_AVAILABLE:
+            st.success("🥈 pyzbar（高精度）")
+        else:
+            st.warning("⚠️ pyzbar 不可用")
+        
+        # OpenCV 狀態
+        st.info("🥉 OpenCV QRCodeDetector（標準精度）")
+        
+        st.markdown("---")
+        st.caption("""
+        **偵測策略**
+        - 優先使用 WeChat QRCode（微信團隊優化）
+        - 備用 pyzbar（高容錯率）
+        - 最後使用 OpenCV（穩定可靠）
+        """)
         
         st.info("""
         💡 **提示**
