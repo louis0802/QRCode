@@ -40,15 +40,30 @@ input/*
 release/
 universal_release/
 windows_portable/
+QRCodeConverter_Universal_*.zip
+*.zip
 
 # Test files
 test_*.py
 *_test.py
+create_test_qrcodes.py
+
+# Build scripts
+build_windows.py
+build_windows_arm.py
+setup_briefcase.py
+create_universal_package.py
+create_windows_portable.py
+download_models.py
 
 # Documentation
 docs/
 *.md
 !README.md
+DEPLOYMENT.md
+QUICKSTART.md
+WINDOWS_SETUP.md
+incomplete_files_report.txt
 
 # Kubernetes
 k8s/

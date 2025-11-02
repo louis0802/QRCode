@@ -4,23 +4,26 @@ FROM python:3.11-slim
 # 設定工作目錄
 WORKDIR /app
 
-# 安裝系統依賴（包括 zbar）
+# 安裝系統依賴（包括 zbar 和 OpenCV 需要的函式庫）
 RUN apt-get update && apt-get install -y \
     libzbar0 \
     libgl1-mesa-glx \
     libglib2.0-0 \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 # 複製 requirements.txt
 COPY requirements.txt .
 
 # 安裝 Python 依賴
-RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir streamlit
+RUN pip install --no-cache-dir -r requirements.txt
 
 # 複製應用程式檔案
 COPY web_app.py .
 COPY qrcode_converter.py .
+
+# 複製 WeChat QRCode 模型檔案
+COPY models/ ./models/
 
 # 建立 input 和 output 目錄
 RUN mkdir -p input output
