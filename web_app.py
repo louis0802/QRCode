@@ -13,6 +13,7 @@ from PIL import Image
 import zipfile
 from datetime import datetime
 import os
+from streamlit_paste_button import paste_image_button as pbutton
 
 try:
     from pyzbar.pyzbar import decode
@@ -310,9 +311,14 @@ def main():
     with st.sidebar:
         st.header("ℹ️ 使用說明")
         st.markdown("""
-        1. 上傳包含 QR code 的圖片
+        1. 上傳或貼上包含 QR code 的圖片
         2. 系統自動偵測並轉換
         3. 下載轉換後的 QR code
+        
+        **輸入方式**
+        - 📁 上傳檔案
+        - 📋 從剪貼簿貼上（Ctrl+V / Cmd+V）
+        - 📸 截圖後直接貼上
         
         **支援格式**
         - PNG, JPG, JPEG
@@ -323,6 +329,7 @@ def main():
         - ✅ 批次處理多張圖片
         - ✅ 即時預覽結果
         - ✅ 一鍵下載所有結果
+        - ✨ 支援剪貼簿貼上
         """)
         
         st.divider()
@@ -366,23 +373,61 @@ def main():
     tab1, tab2 = st.tabs(["📤 單張上傳", "📦 批次上傳"])
     
     with tab1:
-        st.header("上傳單張圖片")
-        uploaded_file = st.file_uploader(
-            "選擇包含 QR code 的圖片",
-            type=['png', 'jpg', 'jpeg', 'bmp', 'gif', 'tiff'],
-            key="single"
-        )
+        st.header("上傳或貼上圖片")
+        
+        # 建立兩個選項：上傳檔案或從剪貼簿貼上
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            st.subheader("📁 上傳檔案")
+            uploaded_file = st.file_uploader(
+                "選擇包含 QR code 的圖片",
+                type=['png', 'jpg', 'jpeg', 'bmp', 'gif', 'tiff'],
+                key="single"
+            )
+        
+        with col2:
+            st.subheader("📋 從剪貼簿貼上")
+            paste_result = pbutton(
+                label="📋 點擊貼上圖片",
+                errors="raise",
+                key="paste_button"
+            )
+        
+        # 處理上傳或貼上的圖片
+        image_to_process = None
+        image_source = None
         
         if uploaded_file:
+            image_to_process = uploaded_file
+            image_source = "uploaded"
+        elif paste_result.image_data is not None:
+            # 將貼上的圖片轉換為 BytesIO 對象
+            image_to_process = io.BytesIO()
+            paste_result.image_data.save(image_to_process, format='PNG')
+            image_to_process.seek(0)
+            image_source = "pasted"
+        
+        if image_to_process:
             col1, col2 = st.columns(2)
             
             with col1:
                 st.subheader("📸 原始圖片")
-                image = Image.open(uploaded_file)
-                st.image(image, width='stretch')
+                image = Image.open(image_to_process)
+                st.image(image, use_container_width=True)
+                
+                if image_source == "pasted":
+                    st.info("✨ 圖片來自剪貼簿")
+                else:
+                    st.info(f"📁 檔案: {uploaded_file.name}")
             
             with st.spinner("🔍 正在偵測和轉換 QR code..."):
-                results, original_image, error = process_image(uploaded_file)
+                # 重置檔案指針
+                if image_source == "uploaded":
+                    uploaded_file.seek(0)
+                else:
+                    image_to_process.seek(0)
+                results, original_image, error = process_image(image_to_process)
             
             if error:
                 st.error(f"❌ {error}")
