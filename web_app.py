@@ -35,10 +35,12 @@ try:
     
     # 檢查檔案是否存在
     if all(os.path.exists(f) for f in [detect_prototxt, detect_caffemodel, sr_prototxt, sr_caffemodel]):
-        WECHAT_DETECTOR = cv2.wechat_qrcode_WeChatQRCode(
-            detect_prototxt, detect_caffemodel,
-            sr_prototxt, sr_caffemodel
-        )
+        # WECHAT_DETECTOR = cv2.wechat_qrcode_WeChatQRCode(
+        #     detect_prototxt, detect_caffemodel,
+        #     sr_prototxt, sr_caffemodel
+        # )
+        WECHAT_DETECTOR = cv2.wechat_qrcode_WeChatQRCode()
+
         WECHAT_AVAILABLE = True
 except Exception as e:
     print(f"WeChat QRCode 初始化失敗: {e}")
